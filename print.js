@@ -3,6 +3,8 @@ const {
   printText,
   listPrinters,
   DEFAULT_PRINTER,
+  DEFAULT_FEED_LINES_NO_CUT,
+  MAX_FEED_LINES,
 } = require("./lib/printer");
 
 function usage() {
@@ -14,6 +16,8 @@ Options:
   --list              List available CUPS printers
   --printer <name>    Printer queue name (default: ${DEFAULT_PRINTER})
   --no-cut            Skip the paper cut at the end
+  --feed-lines <n>    Blank lines to feed after text (0-${MAX_FEED_LINES},
+                      default: ${DEFAULT_FEED_LINES_NO_CUT} with --no-cut, 0 otherwise)
   -h, --help          Show this help
 
 Environment:
@@ -22,6 +26,8 @@ Environment:
 Examples:
   node print.js "Hello, receipt!"
   node print.js --printer USB_80Series2 "Order #42"
+  node print.js --no-cut "Visible on stream"
+  node print.js --no-cut --feed-lines 10 "Extra margin"
   PRINTER_NAME=USB_80Series2 node print.js "Test print"
 `);
 }
@@ -31,6 +37,7 @@ function parseArgs(argv) {
     list: false,
     help: false,
     noCut: false,
+    feedLines: undefined,
     printer: process.env.PRINTER_NAME || DEFAULT_PRINTER,
     text: "",
   };
@@ -50,6 +57,23 @@ function parseArgs(argv) {
     }
     if (arg === "--no-cut") {
       options.noCut = true;
+      continue;
+    }
+    if (arg === "--feed-lines") {
+      const value = Number(argv[i + 1]);
+
+      if (
+        !Number.isInteger(value)
+        || value < 0
+        || value > MAX_FEED_LINES
+      ) {
+        throw new Error(
+          `--feed-lines must be an integer from 0 to ${MAX_FEED_LINES}`,
+        );
+      }
+
+      options.feedLines = value;
+      i += 1;
       continue;
     }
     if (arg === "--printer") {
@@ -110,6 +134,7 @@ async function main() {
     const result = await printText(options.text, {
       printer: options.printer,
       noCut: options.noCut,
+      feedLines: options.feedLines,
     });
     console.log(`Printed to ${result.printer}: ${result.text}`);
   } catch (error) {

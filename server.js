@@ -2,7 +2,7 @@
 require("dotenv").config();
 
 const express = require("express");
-const { printText, listPrinters, DEFAULT_PRINTER } = require("./lib/printer");
+const { printText, listPrinters, DEFAULT_PRINTER, MAX_FEED_LINES } = require("./lib/printer");
 
 const PORT = Number(process.env.PORT) || 3000;
 const AUTH_TOKEN = process.env.AUTH_TOKEN;
@@ -50,6 +50,7 @@ app.get("/printers", requireAuth, async (_req, res) => {
 app.post("/print", requireAuth, async (req, res) => {
   let text;
   let noCut = false;
+  let feedLines;
   let printer;
 
   if (typeof req.body === "string") {
@@ -58,6 +59,21 @@ app.post("/print", requireAuth, async (req, res) => {
     text = typeof req.body.text === "string" ? req.body.text.trim() : "";
     noCut = Boolean(req.body.noCut);
     printer = req.body.printer;
+
+    if (req.body.feedLines !== undefined) {
+      feedLines = Number(req.body.feedLines);
+
+      if (
+        !Number.isInteger(feedLines)
+        || feedLines < 0
+        || feedLines > MAX_FEED_LINES
+      ) {
+        res.status(400).json({
+          error: `feedLines must be an integer from 0 to ${MAX_FEED_LINES}`,
+        });
+        return;
+      }
+    }
   }
 
   if (!text) {
@@ -68,11 +84,13 @@ app.post("/print", requireAuth, async (req, res) => {
   }
 
   try {
-    const result = await printText(text, { printer, noCut });
+    const result = await printText(text, { printer, noCut, feedLines });
     res.json({
       ok: true,
       printer: result.printer,
       text: result.text,
+      noCut: result.noCut,
+      feedLines: result.feedLines,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

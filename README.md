@@ -75,6 +75,7 @@ curl -X POST http://<host>:3000/print \
 Optional JSON fields:
 
 - `noCut` — skip the paper cut at the end (default: `false`)
+- `feedLines` — blank lines to feed after text (0–50). Defaults to `8` when `noCut` is true, `0` when cutting
 - `printer` — override the CUPS queue for this job
 
 Success response:
@@ -83,7 +84,9 @@ Success response:
 {
   "ok": true,
   "printer": "USB_80Series2",
-  "text": "Order #42\n2x Coffee"
+  "text": "Order #42\n2x Coffee",
+  "noCut": true,
+  "feedLines": 8
 }
 ```
 
@@ -94,7 +97,8 @@ Print from the command line without running the server:
 ```bash
 npm run print -- "Hello, receipt!"
 npm run print -- --printer USB_80Series2 "Order #42"
-npm run print -- --no-cut "Keep paper connected"
+npm run print -- --no-cut "Visible on stream"
+npm run print -- --no-cut --feed-lines 10 "Extra margin"
 npm run list
 ```
 
