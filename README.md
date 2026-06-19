@@ -75,7 +75,7 @@ curl -X POST http://<host>:3000/print \
 Optional JSON fields:
 
 - `noCut` — skip the paper cut at the end (default: `false`)
-- `feedLines` — blank lines to feed after text (0–50). Defaults to `8` when `noCut` is true, `0` when cutting
+- `feedLines` — blank lines to feed after text (0–50). Defaults to `4` when `noCut` is true, `0` when cutting
 - `printer` — override the CUPS queue for this job
 
 Success response:
@@ -86,7 +86,7 @@ Success response:
   "printer": "USB_80Series2",
   "text": "Order #42\n2x Coffee",
   "noCut": true,
-  "feedLines": 8
+  "feedLines": 4
 }
 ```
 
