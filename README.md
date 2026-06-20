@@ -27,8 +27,7 @@ Copy `.env.example` to `.env` and adjust values:
 | `AUTH_TOKEN` | Yes | — | Bearer token for protected API routes |
 | `PORT` | No | `3000` | HTTP listen port |
 | `PRINTER_NAME` | No | `USB_80Series2` | Default CUPS printer queue |
-| `COALESCE_MS` | No | `150` | Wait after the last message before printing a batch |
-| `MAX_BATCH_WAIT_MS` | No | `2000` | Maximum wait before flushing a partial batch |
+| `COALESCE_MS` | No | `500` | Wait after the last message before printing a batch |
 | `JOB_DELAY_MS` | No | `500` | Pause between completed CUPS batches |
 | `JOB_TIMEOUT_MS` | No | `30000` | Cancel a CUPS job if it has not finished in time |
 | `MAX_QUEUE_MESSAGES` | No | `100` | Reject new messages when the queue is full |
