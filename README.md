@@ -27,6 +27,11 @@ Copy `.env.example` to `.env` and adjust values:
 | `AUTH_TOKEN` | Yes | — | Bearer token for protected API routes |
 | `PORT` | No | `3000` | HTTP listen port |
 | `PRINTER_NAME` | No | `USB_80Series2` | Default CUPS printer queue |
+| `COALESCE_MS` | No | `150` | Wait after the last message before printing a batch |
+| `MAX_BATCH_WAIT_MS` | No | `2000` | Maximum wait before flushing a partial batch |
+| `JOB_DELAY_MS` | No | `500` | Pause between completed CUPS batches |
+| `JOB_TIMEOUT_MS` | No | `30000` | Cancel a CUPS job if it has not finished in time |
+| `MAX_QUEUE_MESSAGES` | No | `100` | Reject new messages when the queue is full |
 
 Find your printer queue name:
 
@@ -75,18 +80,21 @@ curl -X POST http://<host>:3000/print \
 Optional JSON fields:
 
 - `noCut` — skip the paper cut at the end (default: `false`)
-- `feedLines` — blank lines to feed after text (0–50). Defaults to `10` when `noCut` is true, `0` when cutting
+- `feedLines` — blank lines to feed after text (0–50). Defaults to `10` when `noCut` is true, `0` when cutting. Applied once at the end of a batch, not between messages
 - `printer` — override the CUPS queue for this job
+- `flush` — print the current batch immediately instead of waiting for the coalesce window
+
+`POST /print` returns immediately. Messages are batched in memory and printed as one CUPS job (joined with single newlines, no extra feeds between messages). Rapid requests within `COALESCE_MS` of each other print together on one receipt.
 
 Success response:
 
 ```json
 {
   "ok": true,
+  "queued": true,
   "printer": "USB_80Series2",
-  "text": "Order #42\n2x Coffee",
-  "noCut": true,
-  "feedLines": 10
+  "pendingMessages": 3,
+  "pendingBatches": 1
 }
 ```
 
@@ -140,9 +148,10 @@ sudo systemctl enable --now thermal-print
 ## Project layout
 
 ```
-lib/printer.js   Shared ESC/POS + CUPS printing logic
-server.js        Express HTTP API
-print.js         CLI entry point
+lib/printer.js      Shared ESC/POS + CUPS printing logic
+lib/print-queue.js  Debounced batch queue and serial CUPS worker
+server.js           Express HTTP API
+print.js            CLI entry point
 ```
 
 ## License

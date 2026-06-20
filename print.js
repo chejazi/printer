@@ -1,11 +1,16 @@
 #!/usr/bin/env node
+require("dotenv").config();
+
 const {
-  printText,
   listPrinters,
   DEFAULT_PRINTER,
   DEFAULT_FEED_LINES_NO_CUT,
   MAX_FEED_LINES,
 } = require("./lib/printer");
+const {
+  createPrintQueueConfigFromEnv,
+  getPrintQueue,
+} = require("./lib/print-queue");
 
 function usage() {
   console.log(`Usage: node print.js [options] [text]
@@ -130,13 +135,17 @@ async function main() {
     process.exit(1);
   }
 
+  const printQueue = getPrintQueue(createPrintQueueConfigFromEnv());
+
   try {
-    const result = await printText(options.text, {
+    printQueue.enqueue({
+      text: options.text,
       printer: options.printer,
       noCut: options.noCut,
       feedLines: options.feedLines,
     });
-    console.log(`Printed to ${result.printer}: ${result.text}`);
+    await printQueue.flushAndWait();
+    console.log(`Printed to ${options.printer}: ${options.text}`);
   } catch (error) {
     console.error(`Print failed: ${error.message}`);
     console.error("Check the printer name with: node print.js --list");

@@ -2,10 +2,15 @@
 require("dotenv").config();
 
 const express = require("express");
-const { printText, listPrinters, DEFAULT_PRINTER, MAX_FEED_LINES } = require("./lib/printer");
+const { listPrinters, DEFAULT_PRINTER, MAX_FEED_LINES } = require("./lib/printer");
+const {
+  createPrintQueueConfigFromEnv,
+  getPrintQueue,
+} = require("./lib/print-queue");
 
 const PORT = Number(process.env.PORT) || 3000;
 const AUTH_TOKEN = process.env.AUTH_TOKEN;
+const printQueue = getPrintQueue(createPrintQueueConfigFromEnv());
 
 if (!AUTH_TOKEN) {
   console.error("Error: AUTH_TOKEN environment variable is required.");
@@ -47,17 +52,19 @@ app.get("/printers", requireAuth, async (_req, res) => {
   }
 });
 
-app.post("/print", requireAuth, async (req, res) => {
+app.post("/print", requireAuth, (req, res) => {
   let text;
   let noCut = false;
   let feedLines;
   let printer;
+  let flush = false;
 
   if (typeof req.body === "string") {
     text = req.body.trim();
   } else if (req.body && typeof req.body === "object") {
     text = typeof req.body.text === "string" ? req.body.text.trim() : "";
     noCut = Boolean(req.body.noCut);
+    flush = Boolean(req.body.flush);
     printer = req.body.printer;
 
     if (req.body.feedLines !== undefined) {
@@ -84,16 +91,21 @@ app.post("/print", requireAuth, async (req, res) => {
   }
 
   try {
-    const result = await printText(text, { printer, noCut, feedLines });
+    const result = printQueue.enqueue({ text, printer, noCut, feedLines });
+
+    if (flush) {
+      printQueue.flushAll();
+    }
+
     res.json({
       ok: true,
+      queued: result.queued,
       printer: result.printer,
-      text: result.text,
-      noCut: result.noCut,
-      feedLines: result.feedLines,
+      pendingMessages: result.pendingMessages,
+      pendingBatches: result.pendingBatches,
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(error.statusCode || 500).json({ error: error.message });
   }
 });
 
