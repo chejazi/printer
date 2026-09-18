@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Receipt Simulator</title>
+  <link rel="stylesheet" href="preview.css">
+</head>
+<body>
+  <header class="masthead">
+    <div><span class="eyebrow">80 MM / 48 COL</span><h1>Receipt Simulator</h1></div>
+    <div class="actions">
+      <output id="width-status" class="width-status" aria-live="polite">48 COL · OK</output>
+      <button type="button" id="reset">Reset example</button>
+      <button type="button" id="copy">Copy text</button>
+      <button type="button" id="download">Download .txt</button>
+      <button type="button" id="print">Print / PDF</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="workbench" aria-label="Receipt editor">
+      <div class="section-heading">
+        <h2>Source text</h2>
+        <output id="cursor-status">Ln 1, Col 1</output>
+      </div>
+      <textarea id="editor" spellcheck="false" aria-label="Editable receipt text"></textarea>
+      <div class="validation-row">
+        <span id="line-status">0 lines</span>
+        <span id="validation-status">Receipt width is valid</span>
+      </div>
+      <div id="overflow-panel" class="overflow-panel" hidden>
+        <strong>Overflowing lines</strong>
+        <div id="overflow-list" class="overflow-list"></div>
+      </div>
+      <button type="button" id="save-as-block" class="editor-save">Save as block</button>
+
+      <fieldset class="generator-panel">
+        <legend>Procedural ASCII</legend>
+        <div class="control-grid">
+          <label>Seed <input id="seed" value="HZ-8048"></label>
+          <button type="button" id="randomize">Randomize seed</button>
+          <label>Style <select id="style"></select></label>
+          <label>Width <input id="width" type="number" min="1" max="48" value="48"></label>
+          <label>Height <input id="height" type="number" min="1" max="32" value="8"></label>
+          <label>Density / complexity <input id="complexity" type="range" min="0.05" max="0.95" step="0.05" value="0.45"></label>
+          <label class="check"><input id="unicode" type="checkbox"> Extended Unicode</label>
+        </div>
+        <pre id="generator-output" aria-label="Generated ASCII preview"></pre>
+        <div class="generator-actions">
+          <button type="button" id="regenerate">Regenerate</button>
+          <button type="button" id="insert">Insert at cursor</button>
+          <button type="button" id="replace">Replace selection</button>
+        </div>
+      </fieldset>
+
+      <section class="block-library" aria-labelledby="block-library-title">
+        <div class="library-heading">
+          <div><span class="eyebrow">Reusable plain text</span><h2 id="block-library-title">Block Library</h2></div>
+          <div class="library-file-actions">
+            <button type="button" id="export-library">Export custom JSON</button>
+            <button type="button" id="import-library">Import JSON</button>
+            <input id="import-file" type="file" accept="application/json,.json" hidden>
+          </div>
+        </div>
+        <div class="library-filters">
+          <label>Search <input id="block-search" type="search" placeholder="Name or description"></label>
+          <label>Category <select id="block-category"><option value="">All categories</option></select></label>
+        </div>
+        <div class="library-layout">
+          <div id="block-list" class="block-list" role="listbox" aria-label="Text block presets"></div>
+          <div class="block-detail">
+            <div class="block-meta"><strong id="block-name">Select a block</strong><span id="block-badge"></span></div>
+            <p id="block-description"></p>
+            <pre id="block-preview"></pre>
+            <div id="block-warning" class="block-warning" hidden></div>
+            <div class="generator-actions">
+              <button type="button" id="block-insert" disabled>Insert at cursor</button>
+              <button type="button" id="block-replace" disabled>Replace selection</button>
+              <button type="button" id="block-edit" disabled>Edit</button>
+              <button type="button" id="block-duplicate" disabled>Duplicate</button>
+              <button type="button" id="block-delete" disabled>Delete</button>
+              <button type="button" id="block-prefix" disabled>Add to sequence prefix</button>
+              <button type="button" id="block-suffix" disabled>Add to sequence suffix</button>
+            </div>
+          </div>
+        </div>
+        <output id="library-status" class="library-status" aria-live="polite"></output>
+      </section>
+
+      <section class="sequence-workspace" aria-labelledby="sequence-title">
+        <div class="library-heading">
+          <div><span class="eyebrow">Dynamic receipt decoration</span><h2 id="sequence-title">Sequence</h2></div>
+          <span class="brand-badge">higher.zip branding</span>
+        </div>
+        <div class="sequence-toolbar">
+          <label>Sequence <select id="sequence-select"><option value="higher-zip-running-horse">higher.zip Running Horse</option></select></label>
+          <button type="button" id="sequence-export">Export sequence</button>
+          <button type="button" id="sequence-import-json">Reimport sequence</button>
+          <input id="sequence-json-file" type="file" accept="application/json,.json" hidden>
+          <button type="button" id="sequence-insert-token">Insert dynamic token</button>
+        </div>
+        <div class="sequence-status-grid">
+          <span>Frame <strong id="sequence-frame">1</strong> / <strong id="sequence-count">162</strong></span>
+          <span>Next <strong id="sequence-next">2</strong></span>
+          <span>Source <strong id="sequence-source-size">1936×1080</strong></span>
+          <span>Output <strong id="sequence-output-size">48×14</strong></span>
+          <span>FPS <input id="sequence-fps" type="number" min="1" max="60" value="8"></span>
+          <label class="check"><input id="sequence-loop" type="checkbox" checked> Loop preview</label>
+          <label class="check"><input id="sequence-auto" type="checkbox" checked> Auto-advance after print success</label>
+        </div>
+        <div class="sequence-controls">
+          <button type="button" id="sequence-first">First</button>
+          <button type="button" id="sequence-previous">Previous</button>
+          <button type="button" id="sequence-play">Play</button>
+          <button type="button" id="sequence-next-button">Next</button>
+          <button type="button" id="sequence-last">Last</button>
+          <button type="button" id="sequence-reset">Reset to frame 1</button>
+          <button type="button" id="sequence-advance">Advance manually</button>
+          <button type="button" id="sequence-random">Random start</button>
+          <label>Set frame <input id="sequence-set-frame" type="number" min="1" value="1"></label>
+        </div>
+        <input id="sequence-timeline" type="range" min="1" max="162" value="1" aria-label="Sequence timeline">
+        <div id="sequence-strip" class="sequence-strip"></div>
+        <div class="sequence-preview-grid">
+          <div><h3>Source preview</h3><div class="source-preview"><span id="sequence-source-empty">Built-in source images are not stored in Git.</span><img id="sequence-source-preview" alt="Imported source frame" hidden></div></div>
+          <div><h3>Receipt-native ASCII</h3><pre id="sequence-ascii-preview"></pre></div>
+        </div>
+        <div class="sequence-composition">
+          <label>Shared prefix <textarea id="sequence-prefix" spellcheck="false">higher.zip
+------------------------------------------------</textarea></label>
+          <label>Shared suffix <textarea id="sequence-suffix" spellcheck="false">------------------------------------------------
+FRAME {{frame}} / {{frameCount}}</textarea></label>
+        </div>
+        <div class="section-heading"><h3>Current resolved receipt</h3><span id="sequence-validation">All frames valid</span></div>
+        <pre id="sequence-resolved"></pre>
+        <div class="generator-actions">
+          <button type="button" id="sequence-copy">Copy current frame</button>
+          <button type="button" id="sequence-download">Download current frame</button>
+        </div>
+
+        <details class="sequence-import-panel">
+          <summary>Import local image sequence</summary>
+          <p>Images are processed locally in this browser and are never uploaded or stored in localStorage.</p>
+          <label>Image files <input id="sequence-image-files" type="file" accept="image/*" multiple></label>
+          <label>Image directory <input id="sequence-image-directory" type="file" accept="image/*" multiple webkitdirectory></label>
+          <div class="sequence-import-controls">
+            <label>Width <input id="convert-width" type="number" min="1" max="48" value="48"></label>
+            <label>Cell aspect <input id="convert-aspect" type="number" min="0.1" max="2" step="0.05" value="0.5"></label>
+            <label>Palette preset <select id="convert-palette-preset"></select></label>
+            <label>Custom palette <input id="convert-palette" value="@%#*+=-:. "></label>
+            <label class="check"><input id="convert-invert" type="checkbox"> Invert palette</label>
+            <label>Normalization <select id="convert-normalization"><option value="sequence">Sequence-wide</option><option value="frame">Per frame</option></select></label>
+            <label>Brightness <input id="convert-brightness" type="number" min="-1" max="1" step="0.05" value="0"></label>
+            <label>Contrast <input id="convert-contrast" type="number" min="0" max="4" step="0.1" value="1"></label>
+            <label>Threshold <input id="convert-threshold" type="number" min="0" max="1" step="0.05" placeholder="disabled"></label>
+            <label>Background <input id="convert-background" maxlength="1" value=" "></label>
+            <label>Crop left <input id="convert-crop-left" type="number" min="0" value="0"></label>
+            <label>Crop top <input id="convert-crop-top" type="number" min="0" value="0"></label>
+            <label>Crop right <input id="convert-crop-right" type="number" min="1" placeholder="source width"></label>
+            <label>Crop bottom <input id="convert-crop-bottom" type="number" min="1" placeholder="source height"></label>
+            <label>Horizontal padding <input id="convert-pad-x" type="number" min="0" max="23" value="0"></label>
+            <label>Vertical padding <input id="convert-pad-y" type="number" min="0" max="20" value="0"></label>
+            <label>Alignment <select id="convert-alignment"><option value="left">Left</option><option value="center" selected>Center</option><option value="right">Right</option></select></label>
+            <label>FPS metadata <input id="convert-fps" type="number" min="1" max="60" value="12"></label>
+          </div>
+          <div class="generator-actions"><button type="button" id="convert-start">Convert images</button><button type="button" id="convert-cancel" disabled>Cancel</button></div>
+          <progress id="convert-progress" value="0" max="1"></progress>
+          <output id="convert-status" aria-live="polite"></output>
+        </details>
+        <output id="sequence-status" class="library-status" aria-live="polite"></output>
+      </section>
+    </section>
+
+    <section class="preview-stage" aria-label="Thermal receipt preview">
+      <div class="section-heading"><h2>Print preview</h2><span>Exact plain text</span></div>
+      <article class="receipt"><pre id="receipt-text"></pre></article>
+    </section>
+  </main>
+
+  <dialog id="block-dialog">
+    <form method="dialog" id="block-form">
+      <h2 id="block-dialog-title">Save custom block</h2>
+      <input id="block-id" type="hidden">
+      <label>Name <input id="block-form-name" required maxlength="80"></label>
+      <label>Category <select id="block-form-category" required></select></label>
+      <label>Description <input id="block-form-description" maxlength="180"></label>
+      <label>Exact text <textarea id="block-form-content" required spellcheck="false"></textarea></label>
+      <div id="block-form-warning" class="block-warning" hidden></div>
+      <div class="generator-actions">
+        <button type="submit" value="save">Save block</button>
+        <button type="button" id="block-dialog-cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="/lib/receipt-format.js"></script>
+  <script src="generators/random.js"></script>
+  <script src="generators/borders.js"></script>
+  <script src="generators/waves.js"></script>
+  <script src="generators/geometry.js"></script>
+  <script src="generators/cellular.js"></script>
+  <script src="generators/index.js"></script>
+  <script src="example-receipt.js"></script>
+  <script src="block-library.js"></script>
+  <script src="presets.js"></script>
+  <script src="preview.js"></script>
+  <script src="sequences/palettes.js"></script>
+  <script src="sequences/sequence-core.js"></script>
+  <script src="sequences/image-converter.js"></script>
+  <script src="sequences/higher-zip-horse/frames.js"></script>
+  <script src="sequences/higher-zip-horse/manifest.js"></script>
+  <script src="sequence-workspace.js"></script>
+</body>
+</html>

@@ -6,7 +6,9 @@
   "scripts": {
     "print": "node print.js",
     "list": "node print.js --list",
-    "start": "node server.js"
+    "start": "node server.js",
+    "preview": "node preview-server.js",
+    "test": "node --test"
   },
   "keywords": [
     "thermal-printer",
