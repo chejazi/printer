@@ -22,9 +22,15 @@ function createApp(options = {}) {
     ...createPrintQueueConfigFromEnv(),
     ...(options.printQueueConfig || {}),
     onBatchStart(batch) {
+      jobStore.updateMany(batch.printJobIds, { state: "printing" });
       jobStore.updateMany(batch.sequenceJobIds, { state: "printing" });
     },
     onBatchSuccess(batch, result) {
+      jobStore.updateMany(batch.printJobIds, {
+        state: "succeeded",
+        completedAt: new Date().toISOString(),
+        printer: result.printer,
+      });
       for (const advancement of batch.sequenceAdvancements) {
         sequenceRegistry.setFrame(advancement.sequenceId, advancement.nextFrameIndex);
       }
@@ -42,6 +48,11 @@ function createApp(options = {}) {
       }
     },
     onBatchFailure(batch, error) {
+      jobStore.updateMany(batch.printJobIds, {
+        state: "failed",
+        failedAt: new Date().toISOString(),
+        error: error.message,
+      });
       jobStore.updateMany(batch.sequenceJobIds, {
         state: "failed",
         failedAt: new Date().toISOString(),
@@ -94,6 +105,7 @@ function createApp(options = {}) {
     let feedLines;
     let printer;
     let flush = false;
+    let trackJob = false;
 
     if (typeof req.body === "string") {
       text = req.body;
@@ -101,6 +113,7 @@ function createApp(options = {}) {
       text = typeof req.body.text === "string" ? req.body.text : "";
       noCut = Boolean(req.body.noCut);
       flush = Boolean(req.body.flush);
+      trackJob = Boolean(req.body.trackJob);
       printer = req.body.printer;
 
       if (req.body.feedLines !== undefined) {
@@ -127,7 +140,8 @@ function createApp(options = {}) {
     }
 
     try {
-      const result = printQueue.enqueue({ text, printer, noCut, feedLines });
+      const job = trackJob ? jobStore.create({ kind: "static", printer }) : null;
+      const result = printQueue.enqueue({ text, printer, noCut, feedLines, printJobId: job?.id });
 
       if (flush) {
         printQueue.flushAll();
@@ -136,6 +150,8 @@ function createApp(options = {}) {
       res.json({
         ok: true,
         queued: result.queued,
+        jobId: job?.id,
+        statusUrl: job ? `/print/jobs/${job.id}` : undefined,
         printer: result.printer,
         pendingMessages: result.pendingMessages,
         pendingBatches: result.pendingBatches,
@@ -143,6 +159,15 @@ function createApp(options = {}) {
     } catch (error) {
       res.status(error.statusCode || 500).json({ error: error.message });
     }
+  });
+
+  app.get("/print/jobs/:id", requireAuth, (req, res) => {
+    const job = jobStore.publicJob(jobStore.get(req.params.id));
+    if (!job) {
+      res.status(404).json({ error: "Unknown print job." });
+      return;
+    }
+    res.json({ ok: true, job });
   });
 
   app.post("/print-sequence", requireAuth, (req, res) => {

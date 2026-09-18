@@ -61,6 +61,8 @@ test("sequence workspace exposes guarded physical printing without browser token
   for (const id of [
     "sequence-print-current", "sequence-print-status", "sequence-print-advance",
     "sequence-print-dialog", "sequence-print-confirm-frame", "sequence-print-confirm-next",
+    "receipt-print-preview", "receipt-print-dialog", "receipt-print-payload",
+    "receipt-print-advance", "receipt-print-status",
   ]) assert.match(html, new RegExp(`id=["']${id}["']`));
   const source = fs.readFileSync(path.join(__dirname, "../preview/sequence-workspace.js"), "utf8");
   assert.match(source, /printPending/);
@@ -72,4 +74,9 @@ test("sequence workspace exposes guarded physical printing without browser token
   assert.match(source, /fetch\("\/api\/print-current-frame"/);
   assert.match(source, /fetch\("\/api\/print-config"/);
   assert.doesNotMatch(source, /AUTH_TOKEN|localStorage\.setItem\([^)]*token/i);
+  const previewSource = fs.readFileSync(path.join(__dirname, "../preview/preview.js"), "utf8");
+  assert.match(previewSource, /receiptPrintPending/);
+  assert.match(previewSource, /fetch\("\/api\/print-receipt-preview"/);
+  assert.match(previewSource, /if \(receiptPrintPending \|\| !receiptPrintConfigured\) return/);
+  assert.doesNotMatch(previewSource, /AUTH_TOKEN|localStorage\.setItem\([^)]*token/i);
 });

@@ -75,6 +75,7 @@
     $("#sequence-set-frame").value = index + 1;
     renderStrip();
     saveCursor();
+    ReceiptPreviewApp.render();
   }
   function setFrame(index) { cursor.setFrame(index); render(); }
   function stopPlayback() {
@@ -264,6 +265,14 @@
   });
 
   $("#sequence-fps").value = sequence.manifest.fps;
+  ReceiptPreviewApp.registerSequenceContext({
+    id: sequence.manifest.id,
+    token: () => SequenceCore.sequenceToken(sequence.manifest.id),
+    currentFrame: () => cursor.currentFrame() + 1,
+    nextFrame: () => cursor.nextFrame() + 1,
+    resolve: (source) => SequenceCore.resolveTemplate(decorated(source, cursor.currentFrame()), sequence, cursor.currentFrame()),
+    setFrame: (frameNumber) => setFrame(frameNumber - 1),
+  });
   render();
   validateComposition();
   loadPrintConfig();

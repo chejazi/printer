@@ -15,6 +15,7 @@
       <button type="button" id="copy">Copy text</button>
       <button type="button" id="download">Download .txt</button>
       <button type="button" id="print">Print / PDF</button>
+      <button type="button" id="receipt-print-preview" class="danger-button" disabled>Print receipt preview</button>
     </div>
   </header>
 
@@ -197,6 +198,27 @@ FRAME {{frame}} / {{frameCount}}</textarea></label>
       <div class="generator-actions">
         <button type="submit" id="sequence-print-confirm-send" value="send">Send to printer</button>
         <button type="button" id="sequence-print-confirm-cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="receipt-print-dialog">
+    <form method="dialog" id="receipt-print-form">
+      <h2>Confirm receipt preview print</h2>
+      <div class="sequence-confirm-grid">
+        <span>Route <strong id="receipt-print-route">/print</strong></span>
+        <span>Printer <strong id="receipt-print-printer">configured</strong></span>
+        <span>Lines <strong id="receipt-print-lines">0</strong></span>
+        <span>Max width <strong id="receipt-print-width">0</strong></span>
+        <span id="receipt-print-frame-row">Current frame <strong id="receipt-print-frame">1</strong></span>
+        <span id="receipt-print-next-row">Next frame <strong id="receipt-print-next">2</strong></span>
+      </div>
+      <label class="check"><input id="receipt-print-advance" type="checkbox" checked> Advance after confirmed print success</label>
+      <pre id="receipt-print-payload"></pre>
+      <output id="receipt-print-status" aria-live="polite">Ready. Print proxy status unknown.</output>
+      <div class="generator-actions">
+        <button type="submit" id="receipt-print-confirm-send" value="send">Send receipt preview</button>
+        <button type="button" id="receipt-print-confirm-cancel">Cancel</button>
       </div>
     </form>
   </dialog>

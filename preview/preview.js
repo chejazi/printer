@@ -10,6 +10,11 @@
   let selectedPresetId = builtInPresets[0]?.id;
   const stored = localStorage.getItem("receipt-simulator-text");
   editor.value = stored === null ? ExampleReceipt.text : stored;
+  let sequenceContext;
+  let receiptPrintConfigured = false;
+  let receiptPrintPending = false;
+  let receiptPrintConfig = {};
+  let receiptPrintWaitTimer;
 
   function titleCase(value) {
     return value.split("-").map((part) => part[0].toUpperCase() + part.slice(1)).join(" ");
@@ -33,6 +38,35 @@
 
   function currentText() {
     return ReceiptFormat.normalizeLineEndings(editor.value);
+  }
+
+  function receiptPreview() {
+    const template = currentText();
+    const dynamic = Boolean(sequenceContext && template.includes(sequenceContext.token()));
+    const text = dynamic ? sequenceContext.resolve(template) : template;
+    return {
+      dynamic,
+      template,
+      text,
+      sequence: dynamic ? sequenceContext.id : undefined,
+      frame: dynamic ? sequenceContext.currentFrame() : undefined,
+      nextFrame: dynamic ? sequenceContext.nextFrame() : undefined,
+    };
+  }
+
+  function setReceiptPrintState(state, message, warning = false) {
+    const status = $("#receipt-print-status");
+    status.textContent = `${state.toUpperCase()}: ${message}`;
+    status.classList.toggle("warning", warning);
+  }
+
+  function updateReceiptPrintButton() {
+    $("#receipt-print-preview").disabled = receiptPrintPending || !receiptPrintConfigured;
+  }
+
+  function registerSequenceContext(context) {
+    sequenceContext = context;
+    render();
   }
 
   function updateCursor() {
@@ -66,8 +100,8 @@
   }
 
   function render() {
-    const text = currentText();
-    const result = ReceiptFormat.validateReceipt(text);
+    const preview = receiptPreview();
+    const result = ReceiptFormat.validateReceipt(preview.text);
     receipt.textContent = result.text;
     $("#line-status").textContent = `${result.lineCount} line${result.lineCount === 1 ? "" : "s"}`;
     $("#validation-status").textContent = result.valid
@@ -77,8 +111,89 @@
     receipt.classList.toggle("has-overflow", !result.valid);
     $("#editor").classList.toggle("has-overflow", !result.valid);
     renderOverflow(result);
-    localStorage.setItem("receipt-simulator-text", text);
+    localStorage.setItem("receipt-simulator-text", currentText());
     updateCursor();
+  }
+
+  async function loadReceiptPrintConfig() {
+    try {
+      const response = await fetch("/api/print-config");
+      receiptPrintConfig = await response.json();
+      receiptPrintConfigured = Boolean(receiptPrintConfig.configured);
+      if (receiptPrintConfigured) {
+        setReceiptPrintState("ready", `Proxy configured${receiptPrintConfig.printer ? ` for ${receiptPrintConfig.printer}` : ""}.`);
+      } else {
+        setReceiptPrintState("ready", receiptPrintConfig.warning || "Printer proxy is not configured.", true);
+      }
+    } catch (error) {
+      receiptPrintConfigured = false;
+      setReceiptPrintState("failed", `Unable to read print proxy configuration: ${error.message}`, true);
+    }
+    updateReceiptPrintButton();
+  }
+
+  function openReceiptPrintConfirmation() {
+    if (receiptPrintPending || !receiptPrintConfigured) return;
+    const preview = receiptPreview();
+    const validation = ReceiptFormat.validateReceipt(preview.text);
+    if (!validation.valid) {
+      setReceiptPrintState("failed", `Blocked: line ${validation.warnings[0].line} is ${validation.warnings[0].width} columns.`, true);
+      return;
+    }
+    const widths = validation.lines.map((line) => ReceiptFormat.lineWidth(line));
+    $("#receipt-print-route").textContent = preview.dynamic ? "/print-sequence" : "/print";
+    $("#receipt-print-printer").textContent = receiptPrintConfig.printer || "default";
+    $("#receipt-print-lines").textContent = validation.lineCount;
+    $("#receipt-print-width").textContent = Math.max(0, ...widths);
+    $("#receipt-print-payload").textContent = preview.text;
+    $("#receipt-print-frame-row").hidden = !preview.dynamic;
+    $("#receipt-print-next-row").hidden = !preview.dynamic;
+    $("#receipt-print-advance").disabled = !preview.dynamic;
+    $("#receipt-print-advance").checked = true;
+    if (preview.dynamic) {
+      $("#receipt-print-frame").textContent = preview.frame;
+      $("#receipt-print-next").textContent = preview.nextFrame;
+    }
+    setReceiptPrintState("queued", "Ready for explicit confirmation.");
+    $("#receipt-print-dialog").showModal();
+  }
+
+  async function sendReceiptPreviewToPrinter() {
+    if (receiptPrintPending || !receiptPrintConfigured) return;
+    receiptPrintPending = true;
+    updateReceiptPrintButton();
+    const preview = receiptPreview();
+    setReceiptPrintState("queued", "Sending receipt preview to the print proxy.");
+    clearTimeout(receiptPrintWaitTimer);
+    receiptPrintWaitTimer = setTimeout(() => {
+      if (receiptPrintPending) setReceiptPrintState("printing", "Waiting for confirmed physical completion.");
+    }, 250);
+    try {
+      const response = await fetch("/api/print-receipt-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: preview.text,
+          template: preview.template,
+          sequence: preview.sequence,
+          frame: preview.frame,
+          advanceOnSuccess: $("#receipt-print-advance").checked,
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || `Print request failed with ${response.status}`);
+      if (preview.dynamic && $("#receipt-print-advance").checked && Number.isInteger(body.job?.currentFrame)) {
+        sequenceContext.setFrame(body.job.currentFrame);
+      }
+      setReceiptPrintState("succeeded", `Receipt preview completed via ${body.route}.`);
+    } catch (error) {
+      const timedOut = /timed out/i.test(error.message);
+      setReceiptPrintState(timedOut ? "timed-out" : "failed", error.message, true);
+    } finally {
+      clearTimeout(receiptPrintWaitTimer);
+      receiptPrintPending = false;
+      updateReceiptPrintButton();
+    }
   }
 
   function generatorOptions() {
@@ -233,6 +348,16 @@
     URL.revokeObjectURL(link.href);
   });
   $("#print").addEventListener("click", () => window.print());
+  $("#receipt-print-preview").addEventListener("click", openReceiptPrintConfirmation);
+  $("#receipt-print-confirm-cancel").addEventListener("click", () => {
+    $("#receipt-print-dialog").close();
+    if (!receiptPrintPending) setReceiptPrintState("ready", "Print cancelled before sending.");
+  });
+  $("#receipt-print-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    $("#receipt-print-dialog").close();
+    sendReceiptPreviewToPrinter();
+  });
 
   [$("#block-search"), $("#block-category")].forEach((control) => control.addEventListener("input", renderLibrary));
   $("#block-insert").addEventListener("click", () => insertPreset(false));
@@ -310,5 +435,13 @@
   generate();
   render();
   renderLibrary();
-  globalThis.ReceiptPreviewApp = { currentText, render, replaceRange, selectedPreset };
+  loadReceiptPrintConfig();
+  globalThis.ReceiptPreviewApp = {
+    currentText,
+    receiptPreview,
+    registerSequenceContext,
+    render,
+    replaceRange,
+    selectedPreset,
+  };
 }());
