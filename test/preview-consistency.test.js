@@ -10,9 +10,12 @@ test("preview, clipboard, and download all use currentText unchanged", () => {
   assert.match(source, /new Blob\(\[currentText\(\)\]/);
 });
 
-test("preview server does not import printer or queue modules", () => {
+test("preview server keeps printer access behind a narrow token-holding proxy", () => {
   const source = fs.readFileSync(path.join(__dirname, "../preview-server.js"), "utf8");
-  assert.doesNotMatch(source, /lib\/(?:printer|print-queue)|lpstat|\blp\b|AUTH_TOKEN/);
+  assert.doesNotMatch(source, /lib\/(?:printer|print-queue)|lpstat|\blp\b/);
+  assert.match(source, /PREVIEW_PRINT_API_URL/);
+  assert.match(source, /PREVIEW_PRINT_AUTH_TOKEN/);
+  assert.doesNotMatch(source, /req\.body\.printApiUrl|req\.body\.host|req\.body\.url/);
 });
 
 test("default example fits the production receipt width", () => {
@@ -51,4 +54,22 @@ test("sequence workspace exposes playback, composition, conversion, and local im
   ]) assert.match(html, new RegExp(`id=["']${id}["']`));
   assert.match(html, /sequences\/higher-zip-horse\/frames\.js/);
   assert.match(html, /sequences\/higher-zip-horse\/manifest\.js/);
+});
+
+test("sequence workspace exposes guarded physical printing without browser token storage", () => {
+  const html = fs.readFileSync(path.join(__dirname, "../preview/index.html"), "utf8");
+  for (const id of [
+    "sequence-print-current", "sequence-print-status", "sequence-print-advance",
+    "sequence-print-dialog", "sequence-print-confirm-frame", "sequence-print-confirm-next",
+  ]) assert.match(html, new RegExp(`id=["']${id}["']`));
+  const source = fs.readFileSync(path.join(__dirname, "../preview/sequence-workspace.js"), "utf8");
+  assert.match(source, /printPending/);
+  assert.match(source, /setPrintState\("confirming"/);
+  assert.match(source, /setPrintState\("queued"/);
+  assert.match(source, /setPrintState\("printing\/waiting"/);
+  assert.match(source, /setPrintState\("succeeded"/);
+  assert.match(source, /setPrintState\("failed"/);
+  assert.match(source, /fetch\("\/api\/print-current-frame"/);
+  assert.match(source, /fetch\("\/api\/print-config"/);
+  assert.doesNotMatch(source, /AUTH_TOKEN|localStorage\.setItem\([^)]*token/i);
 });

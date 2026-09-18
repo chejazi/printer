@@ -6,6 +6,9 @@
   let playTimer;
   let importedSourceUrls = [];
   let cancellation = { cancelled: false };
+  let printPending = false;
+  let printConfigured = false;
+  let printWaitTimer;
 
   function cursorKey(id) { return `receipt-sequence-cursor:${id}`; }
   function loadCursor(id) {
@@ -26,6 +29,13 @@
   function setStatus(message, warning = false) {
     $("#sequence-status").textContent = message;
     $("#sequence-status").classList.toggle("warning", warning);
+  }
+  function setPrintState(state, message, warning = false) {
+    $("#sequence-print-status").textContent = `${state.toUpperCase()}: ${message}`;
+    $("#sequence-print-status").classList.toggle("warning", warning);
+  }
+  function updatePrintButton() {
+    $("#sequence-print-current").disabled = printPending || !printConfigured;
   }
   function validateComposition() {
     const invalid = [];
@@ -96,6 +106,68 @@
     render();
     validateComposition();
   }
+  async function loadPrintConfig() {
+    try {
+      const response = await fetch("/api/print-config");
+      const config = await response.json();
+      printConfigured = Boolean(config.configured);
+      if (printConfigured) {
+        setPrintState("ready", `Proxy configured${config.printer ? ` for ${config.printer}` : ""}.`);
+      } else {
+        setPrintState("ready", config.warning || "Printer proxy is not configured.", true);
+      }
+    } catch (error) {
+      printConfigured = false;
+      setPrintState("failed", `Unable to read print proxy configuration: ${error.message}`, true);
+    }
+    updatePrintButton();
+  }
+  function openPrintConfirmation() {
+    if (printPending || !printConfigured) return;
+    const index = cursor.currentFrame();
+    $("#sequence-print-confirm-frame").textContent = index + 1;
+    $("#sequence-print-confirm-next").textContent = cursor.nextFrame() + 1;
+    $("#sequence-print-confirm-copy").textContent = `Send frame ${index + 1} to the configured physical printer? The browser preview will not advance until the server confirms physical completion.`;
+    setPrintState("confirming", `Frame ${index + 1}; next frame ${cursor.nextFrame() + 1}.`);
+    $("#sequence-print-dialog").showModal();
+  }
+  async function sendCurrentFrameToPrinter() {
+    if (printPending || !printConfigured) return;
+    printPending = true;
+    updatePrintButton();
+    const index = cursor.currentFrame();
+    const advanceOnSuccess = $("#sequence-print-advance").checked;
+    setPrintState("queued", `Sending frame ${index + 1}; next frame ${cursor.nextFrame() + 1}.`);
+    clearTimeout(printWaitTimer);
+    printWaitTimer = setTimeout(() => {
+      if (printPending) setPrintState("printing/waiting", "Waiting for confirmed physical completion.");
+    }, 250);
+    try {
+      const response = await fetch("/api/print-current-frame", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          template: decorated(template(), index),
+          sequence: sequence.manifest.id,
+          frame: index + 1,
+          advanceOnSuccess,
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || `Print request failed with ${response.status}`);
+      if (advanceOnSuccess && Number.isInteger(body.job?.currentFrame)) {
+        cursor.setFrame(body.job.currentFrame - 1);
+        render();
+      }
+      setPrintState("succeeded", `Frame ${index + 1} completed. Current frame is ${cursor.currentFrame() + 1}.`);
+    } catch (error) {
+      setPrintState("failed", error.message, true);
+    } finally {
+      clearTimeout(printWaitTimer);
+      printPending = false;
+      updatePrintButton();
+    }
+  }
 
   $("#sequence-first").addEventListener("click", () => setFrame(0));
   $("#sequence-previous").addEventListener("click", () => setFrame(cursor.currentFrame() - 1));
@@ -121,6 +193,16 @@
     try { selectSequence(SequenceCore.importSequence(await event.target.files[0].text())); setStatus("Sequence imported locally."); }
     catch (error) { setStatus(error.message, true); }
     event.target.value = "";
+  });
+  $("#sequence-print-current").addEventListener("click", openPrintConfirmation);
+  $("#sequence-print-confirm-cancel").addEventListener("click", () => {
+    $("#sequence-print-dialog").close();
+    if (!printPending) setPrintState("ready", "Print cancelled before sending.");
+  });
+  $("#sequence-print-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    $("#sequence-print-dialog").close();
+    sendCurrentFrameToPrinter();
   });
 
   SequencePalettes.presets.forEach((preset) => {
@@ -184,4 +266,5 @@
   $("#sequence-fps").value = sequence.manifest.fps;
   render();
   validateComposition();
+  loadPrintConfig();
 }());

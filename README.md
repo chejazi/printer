@@ -131,6 +131,21 @@ PREVIEW_HOST=0.0.0.0 PREVIEW_PORT=4173 npm run preview
 
 Then browse to `http://<lan-host>:4173`. Do not commit tunnel URLs, live hostnames, or tokens.
 
+To enable the guarded **PRINT CURRENT FRAME** action in the `SEQUENCE` workspace, run the production printer API with its bearer token, then start the preview server with a narrow same-origin proxy. The token stays in the preview-server process and is never embedded in browser JavaScript or written to `localStorage`:
+
+```bash
+AUTH_TOKEN=<AUTH_TOKEN> PRINTER_NAME=<cups-printer-queue> npm start
+
+PREVIEW_PRINT_API_URL=http://127.0.0.1:3000 \
+PREVIEW_PRINT_AUTH_TOKEN=<AUTH_TOKEN> \
+PREVIEW_PRINT_PRINTER_NAME=<cups-printer-queue> \
+PREVIEW_PRINT_TIMEOUT_MS=45000 \
+PREVIEW_PRINT_POLL_MS=500 \
+npm run preview
+```
+
+For a remote printer API exposed through a tunnel, set `PREVIEW_PRINT_API_URL=<fixed-printer-api-origin>` on the preview server. Do not put tunnel URLs or bearer tokens in browser source, committed files, custom block JSON, sequence exports, or localStorage. The browser cannot choose an arbitrary print destination; it can only call the same-origin preview proxy configured by these environment variables.
+
 The editor and procedural tools produce plain text using the printer's 48-character line width. Overflow is reported without wrapping or silently rewriting the design. Copy, `.txt` download, browser print/PDF, and the receipt preview all use the same exact editor value. That value can be sent directly as the existing JSON `text` field:
 
 ```json

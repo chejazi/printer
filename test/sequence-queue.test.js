@@ -7,7 +7,7 @@ function dynamicMessage(id = "horse") {
   return {
     sequenceId: id,
     advanceOnSuccess: true,
-    resolveText: () => ({ text: "FRAME", sequenceId: id }),
+    resolveText: () => ({ text: "FRAME", sequenceId: id, frameIndex: 0, frameCount: 162 }),
   };
 }
 
@@ -70,11 +70,83 @@ test("production registry advances only from the successful batch callback", asy
   const queue = new PrintQueue({
     coalesceMs: 0, jobDelayMs: 0,
     printBatch: async () => ({ printer: "test", jobId: "simulated" }),
-    onBatchSuccess: (batch) => batch.sequenceIds.forEach((id) => registry.advance(id)),
+    onBatchSuccess: (batch) => batch.sequenceAdvancements.forEach((target) => registry.setFrame(target.sequenceId, target.nextFrameIndex)),
   });
   registry.resolve(sequenceId, template);
   assert.equal(registry.currentFrame(sequenceId), 0);
   queue.enqueue({ sequenceId, advanceOnSuccess: true, resolveText: () => registry.resolve(sequenceId, template) });
+  assert.equal(registry.currentFrame(sequenceId), 0);
   await queue.flushAndWait();
   assert.equal(registry.currentFrame(sequenceId), 1);
+});
+
+test("queue acceptance does not advance before confirmed completion", async () => {
+  const registry = createSequenceRegistry({ stateFile: null });
+  let releasePrint;
+  const printed = new Promise((resolve) => { releasePrint = resolve; });
+  const queue = new PrintQueue({
+    coalesceMs: 0, jobDelayMs: 0,
+    printBatch: async () => {
+      await printed;
+      return { printer: "test", jobId: "held" };
+    },
+    onBatchSuccess: (batch) => batch.sequenceAdvancements.forEach((target) => registry.setFrame(target.sequenceId, target.nextFrameIndex)),
+  });
+  const sequenceId = "higher-zip-running-horse";
+  queue.enqueue({
+    sequenceId,
+    advanceOnSuccess: true,
+    resolveText: () => registry.resolve(sequenceId, registry.token(sequenceId), 4),
+  });
+  assert.equal(registry.currentFrame(sequenceId), 0);
+  releasePrint();
+  await queue.flushAndWait();
+  assert.equal(registry.currentFrame(sequenceId), 5);
+});
+
+test("timeout-style print failure leaves cursor unchanged", async () => {
+  const registry = createSequenceRegistry({ stateFile: null });
+  let failures = 0;
+  const queue = new PrintQueue({
+    coalesceMs: 0, jobDelayMs: 0,
+    printBatch: async () => { throw new Error("Print job timed out after 1ms"); },
+    onBatchSuccess: (batch) => batch.sequenceAdvancements.forEach((target) => registry.setFrame(target.sequenceId, target.nextFrameIndex)),
+    onBatchFailure: () => { failures += 1; },
+  });
+  const sequenceId = "higher-zip-running-horse";
+  queue.enqueue({
+    sequenceId,
+    advanceOnSuccess: true,
+    resolveText: () => registry.resolve(sequenceId, registry.token(sequenceId), 10),
+  });
+  await queue.flushAndWait();
+  assert.equal(failures, 1);
+  assert.equal(registry.currentFrame(sequenceId), 0);
+});
+
+test("coalesced sequence completions set a single final next frame", async () => {
+  const registry = createSequenceRegistry({ stateFile: null });
+  let advancementCalls = 0;
+  const sequenceId = "higher-zip-running-horse";
+  const queue = new PrintQueue({
+    coalesceMs: 1000, jobDelayMs: 0,
+    printBatch: async () => ({ printer: "test", jobId: "coalesced" }),
+    onBatchSuccess: (batch) => batch.sequenceAdvancements.forEach((target) => {
+      advancementCalls += 1;
+      registry.setFrame(target.sequenceId, target.nextFrameIndex);
+    }),
+  });
+  queue.enqueue({
+    sequenceId,
+    advanceOnSuccess: true,
+    resolveText: () => registry.resolve(sequenceId, registry.token(sequenceId), 20),
+  });
+  queue.enqueue({
+    sequenceId,
+    advanceOnSuccess: true,
+    resolveText: () => registry.resolve(sequenceId, registry.token(sequenceId), 20),
+  });
+  await queue.flushAndWait();
+  assert.equal(advancementCalls, 1);
+  assert.equal(registry.currentFrame(sequenceId), 21);
 });

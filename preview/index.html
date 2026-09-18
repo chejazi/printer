@@ -134,6 +134,14 @@ FRAME {{frame}} / {{frameCount}}</textarea></label>
         </div>
         <div class="section-heading"><h3>Current resolved receipt</h3><span id="sequence-validation">All frames valid</span></div>
         <pre id="sequence-resolved"></pre>
+        <section class="sequence-print-panel" aria-labelledby="sequence-print-title">
+          <div>
+            <h3 id="sequence-print-title">Physical printer</h3>
+            <output id="sequence-print-status" aria-live="polite">Ready. Print proxy status unknown.</output>
+          </div>
+          <label class="check"><input id="sequence-print-advance" type="checkbox" checked> Advance after confirmed print success</label>
+          <button type="button" id="sequence-print-current" class="danger-button" disabled>Print current frame</button>
+        </section>
         <div class="generator-actions">
           <button type="button" id="sequence-copy">Copy current frame</button>
           <button type="button" id="sequence-download">Download current frame</button>
@@ -177,6 +185,21 @@ FRAME {{frame}} / {{frameCount}}</textarea></label>
       <article class="receipt"><pre id="receipt-text"></pre></article>
     </section>
   </main>
+
+  <dialog id="sequence-print-dialog">
+    <form method="dialog" id="sequence-print-form">
+      <h2>Confirm physical print</h2>
+      <p id="sequence-print-confirm-copy"></p>
+      <div class="sequence-confirm-grid">
+        <span>Current frame <strong id="sequence-print-confirm-frame">1</strong></span>
+        <span>Next frame <strong id="sequence-print-confirm-next">2</strong></span>
+      </div>
+      <div class="generator-actions">
+        <button type="submit" id="sequence-print-confirm-send" value="send">Send to printer</button>
+        <button type="button" id="sequence-print-confirm-cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="block-dialog">
     <form method="dialog" id="block-form">
